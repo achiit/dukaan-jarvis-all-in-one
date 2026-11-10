@@ -1,0 +1,1360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JARVIS</title>
+<style id="app-style">
+  :root { --c:#00e5ff; --c2:#7fe9ff; --line:rgba(0,229,255,.35); --bg:#02090d; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin:0; color:#aef4ff; overflow:hidden;
+         font-family: "Share Tech Mono", ui-monospace, "Courier New", monospace;
+         background: radial-gradient(circle at 50% 48%, #05242e 0%, #03121a 40%, var(--bg) 78%); }
+  body::before { content:""; position:fixed; inset:0; pointer-events:none;
+         background-image: linear-gradient(rgba(0,229,255,.05) 1px, transparent 1px),
+                           linear-gradient(90deg, rgba(0,229,255,.05) 1px, transparent 1px);
+         background-size: 42px 42px; }
+  .hud { position:relative; width:100%; max-width:100vw; overflow:hidden; display:grid; grid-template-rows:auto 1fr auto; height:100vh; height:100dvh; padding:14px 22px 12px; gap:8px; }
+  header { display:flex; justify-content:space-between; align-items:flex-start; }
+  .clock small { display:block; font-size:10px; letter-spacing:3px; opacity:.6; }
+  #clock { font-size:30px; letter-spacing:3px; color:var(--c); text-shadow:0 0 12px var(--c); }
+  .topright { text-align:right; font-size:10px; letter-spacing:2px; line-height:1.7; opacity:.75; }
+  .topright div:first-child { color:var(--c); opacity:1; }
+  main { display:grid; grid-template-columns:minmax(220px,310px) 1fr minmax(190px,260px); gap:24px; align-items:center; min-height:0; }
+  .panel { position:relative; border:1px solid var(--line); background:rgba(0,229,255,.04); padding:12px; box-shadow: inset 0 0 24px rgba(0,229,255,.05); }
+  .panel::before, .panel::after { content:""; position:absolute; width:12px; height:12px; border:2px solid var(--c); }
+  .panel::before { top:-1px; left:-1px; border-right:0; border-bottom:0; }
+  .panel::after { bottom:-1px; right:-1px; border-left:0; border-top:0; }
+  .panel h3 { margin:0 0 8px; font-size:10px; font-weight:400; letter-spacing:3px; color:var(--c); }
+  .left { height:min(62vh,470px); display:flex; flex-direction:column; }
+  #log { flex:1; overflow-y:auto; font-size:12px; padding-right:4px; scrollbar-width:thin; scrollbar-color:var(--line) transparent; }
+  .msg { margin:7px 0; padding:4px 8px; border-inline-start:2px solid var(--line); line-height:1.65; word-break:break-word; font-family:ui-monospace,"Courier New","Noto Naskh Arabic","Noto Sans Arabic",monospace; }
+  .msg::before { display:block; font-size:9px; letter-spacing:2px; opacity:.55; }
+  .you { border-inline-start-color:#ffffff66; color:#e4f9ff; }
+  .you::before { content:"YOU"; }
+  .jarvis { border-inline-start-color:var(--c); color:var(--c2); }
+  .jarvis::before { content:"JARVIS"; }
+  .msg a { color:#7fd0ff; }
+  #stats { list-style:none; margin:0; padding:0; font-size:11px; letter-spacing:1px; }
+  #stats li { display:grid; grid-template-columns:1fr auto; gap:2px 8px; padding:9px 0; border-bottom:1px solid rgba(0,229,255,.12); }
+  #stats li span { opacity:.6; letter-spacing:2px; font-size:10px; }
+  #stats li b { font-weight:400; color:var(--c); }
+  #stats li i { grid-column:1 / -1; height:2px; background:rgba(0,229,255,.15); }
+  #stats li u { display:block; height:100%; width:18%; background:var(--c); box-shadow:0 0 8px var(--c); transition:width .4s; }
+  .core { position:relative; width:min(48vh,360px); aspect-ratio:1; margin:0 auto; display:grid; place-items:center; }
+  .ring { position:absolute; border-radius:50%; border:1px solid rgba(0,229,255,.22); }
+  .r1 { inset:-14%; border-style:dashed; opacity:.5; animation:spin 60s linear infinite reverse; }
+  .r2 { inset:0; }
+  .r3 { inset:12%; border:2px solid transparent; border-top-color:var(--c); border-left-color:rgba(0,229,255,.4); animation:spin 7s linear infinite; }
+  .r4 { inset:22%; border-color:rgba(0,229,255,.35); }
+  .orbit { position:absolute; inset:0; animation:spin 11s linear infinite; }
+  .orbit span { position:absolute; top:-4px; left:50%; width:8px; height:8px; margin-left:-4px; border-radius:50%; background:var(--c); box-shadow:0 0 12px var(--c); }
+  .orb { width:42%; aspect-ratio:1; border-radius:50%; border:0; cursor:pointer; color:#00323b; font-family:inherit; font-weight:700; font-size:clamp(14px,2.2vw,20px); letter-spacing:4px;
+         background:radial-gradient(circle at 50% 38%, #7ffaff, #00d4ec 55%, #00a3ba);
+         box-shadow:0 0 36px var(--c), 0 0 90px rgba(0,229,255,.45); animation:breathe 4s ease-in-out infinite; }
+  #orbState { position:absolute; bottom:-30px; left:0; right:0; text-align:center; font-size:11px; letter-spacing:4px; color:var(--c2); }
+  .core[data-state=listening] .orb { animation:pulse .8s ease-in-out infinite; }
+  .core[data-state=listening] .r2 { border-color:var(--c); }
+  .core[data-state=thinking] .r3 { animation-duration:.9s; }
+  .core[data-state=thinking] .orbit { animation-duration:2.2s; }
+  .core[data-state=speaking] .orb { animation:talk .32s ease-in-out infinite alternate; }
+  .core[data-state=standby] .orb { animation-duration:2.4s; }
+  footer { width:100%; max-width:780px; margin:0 auto; padding-top:26px; }
+  #status { text-align:center; font-size:11px; letter-spacing:2px; color:var(--c2); min-height:16px; margin-bottom:6px; }
+  #keybox { display:none; gap:8px; margin-bottom:8px; }
+  #voicebox { display:none; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
+  select { flex:1; min-width:0; padding:10px; background:rgba(0,229,255,.05); border:1px solid var(--line); color:#e4f9ff; font:inherit; font-size:12px; outline:none; }
+  select option { background:#04181f; color:#e4f9ff; }
+  button.sel { background:var(--c); color:#00323b; border-color:var(--c); }
+  button.sel:hover { background:var(--c); }
+  #bar { display:flex; gap:8px; }
+  input { flex:1; min-width:0; padding:11px 12px; background:rgba(0,229,255,.05); border:1px solid var(--line); color:#e4f9ff; font:inherit; font-size:13px; outline:none; }
+  input:focus { border-color:var(--c); box-shadow:0 0 10px rgba(0,229,255,.3); }
+  input::placeholder { color:rgba(174,244,255,.4); }
+  button { padding:10px 14px; background:transparent; border:1px solid var(--line); color:var(--c); font:inherit; font-size:12px; letter-spacing:1px; cursor:pointer; white-space:nowrap; }
+  button:hover { background:rgba(0,229,255,.12); border-color:var(--c); }
+  button.listening { background:#ff3b5c; border-color:#ff3b5c; color:#fff; }
+  button#hf.on { background:var(--c); color:#00323b; border-color:var(--c); }
+  button.orb:hover { background:radial-gradient(circle at 50% 38%, #7ffaff, #00d4ec 55%, #00a3ba); }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  @keyframes breathe { 50% { transform:scale(1.04); box-shadow:0 0 50px var(--c), 0 0 120px rgba(0,229,255,.5); } }
+  @keyframes pulse { 50% { transform:scale(1.09); box-shadow:0 0 60px var(--c), 0 0 140px rgba(0,229,255,.7); } }
+  @keyframes talk { from { transform:scale(1); } to { transform:scale(1.1); box-shadow:0 0 64px var(--c), 0 0 130px rgba(0,229,255,.65); } }
+  @media (max-width:860px) {
+    main { grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(0,1fr); gap:34px; align-content:start; }
+    .right { display:none; }
+    .core { width:min(34vh,250px); order:1; }
+    .left { order:2; height:100%; max-height:30vh; }
+    #clock { font-size:22px; }
+    .hud { padding:12px 12px 10px; }
+    #bar { flex-wrap:wrap; }
+    #bar input { order:-1; flex:1 1 100%; }
+    #bar button { flex:1 1 auto; padding:10px 8px; }
+    .left, .core { min-width:0; }
+  }
+  #extbox { display:none; margin-bottom:8px; padding:10px 12px; border:1px solid var(--line); background:rgba(0,229,255,.04); font-size:12px; line-height:1.6; }
+  #extbox .extbtns { display:flex; gap:8px; margin-top:8px; }
+  #ext-msg { margin-top:6px; color:var(--c2); }
+</style>
+</head>
+<body>
+<template id="page-html">
+<div class="hud">
+  <header>
+    <div class="clock"><small id="date">LOCAL TIME</small><div id="clock">--:--:--</div></div>
+    <div class="topright"><div>JARVIS // ONLINE</div><div id="modelLabel">MODEL: --</div><div id="sysline">SYS: READY</div><button id="extbtn" style="margin-top:6px;padding:4px 8px;font-size:10px;letter-spacing:2px">🧩 CHROMEBOOK CONTROL</button></div>
+  </header>
+  <main>
+    <section class="panel left"><h3>TRANSCRIPT</h3><div id="log"></div></section>
+    <div class="core" data-state="idle">
+      <div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div><div class="ring r4"></div>
+      <div class="orbit"><span></span></div>
+      <button id="orb" class="orb" title="Click to talk">JARVIS</button>
+      <div id="orbState">STANDBY</div>
+    </div>
+    <section class="panel right"><h3>SYSTEM STATUS</h3>
+      <ul id="stats">
+        <li><span>MICROPHONE</span><b id="s-mic">READY</b><i><u id="b-mic"></u></i></li>
+        <li><span>VOICE</span><b id="s-voice">IDLE</b><i><u id="b-voice"></u></i></li>
+        <li><span>PROCESSING</span><b id="s-brain">IDLE</b><i><u id="b-brain"></u></i></li>
+        <li><span>MODEL</span><b id="s-model">--</b><i><u id="b-model" style="width:100%"></u></i></li>
+        <li><span>MEMORY</span><b id="s-mem">0 FACTS</b><i><u id="b-mem"></u></i></li>
+      </ul>
+    </section>
+  </main>
+  <footer>
+    <div id="extbox">
+      <div>Controlling tabs, windows and media needs a small Chrome extension. This page can create it for you:</div>
+      <div>1) Press Download zip, then right-click the zip in the Files app and choose Extract all (or press Save folder and pick an empty folder, not Downloads itself).</div>
+      <div>2) In Chrome open chrome://extensions, turn on Developer mode, click Load unpacked and choose the jarvis-extension folder.</div>
+      <div>3) Click the Jarvis icon in the toolbar, or press Alt+Shift+J, and say your commands.</div>
+      <div class="extbtns"><button id="ext-zip">Download zip</button><button id="ext-save">Save folder</button></div>
+      <div id="ext-msg"></div>
+    </div>
+    <div id="voicebox">
+      <button id="v-boy">👦 Boy</button>
+      <button id="v-girl">👧 Girl</button>
+      <select id="voiceSel"></select>
+      <button id="v-test">Test</button>
+    </div>
+    <div id="keybox">
+      <input id="keyinput" type="password" placeholder="PASTE YOUR GROQ (gsk_...) OR GEMINI (AIza...) KEY">
+      <button id="savekey">SAVE</button>
+    </div>
+    <div id="status"></div>
+    <div id="bar">
+      <button id="mic">🎤 Talk</button>
+      <button id="hf">👂 Hands-free: off</button>
+      <input id="text" dir="auto" placeholder="Or type here and press Enter">
+      <button id="lang">🌐 Auto</button>
+      <button id="vbtn">🔊 Voice</button>
+      <button id="key">API key</button>
+    </div>
+  </footer>
+</div>
+
+</template>
+<script id="app-src" type="text/plain">
+const API = "https://api.groq.com/openai/v1";
+// Tried in this order; if one runs out of free quota, the next is used automatically
+const PREFERRED = ["openai/gpt-oss-120b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+let activeModel = PREFERRED[0], modelPool = null;
+const blockedUntil = {};   // model -> time when we may try it again
+const BASE_SYSTEM = "You are Jarvis, a helpful AI assistant. Speak like a standard, neutral AI assistant: polite, clear, factual and to the point, with no jokes, slang or butler-style roleplay. Keep answers short (one to three sentences) because they are read aloud, unless the user asks for detail. Do not use markdown, bullet points, emojis or special symbols. You CAN open websites and apps for the user with the open_anything tool, so never say you cannot open things; call the tool and then confirm briefly. When you set a timer, write its label in the language you are replying in.";
+
+// ---------- Tools: add new abilities here ----------
+const TOOLS = [
+  { name: "get_time",
+    description: "Get the current local date and time.",
+    input_schema: { type: "object", properties: {} } },
+  { name: "open_anything",
+    description: "ALWAYS use this tool when the user asks to open, launch, go to, or search on any website, web app, or app. Native apps are opened as their web versions (calculator, notes, mail, files, music, news and so on). Examples: 'open YouTube', 'open Gmail', 'search YouTube for lofi music', 'open maps for pizza', 'open github.com', 'open calculator'. If you do not know the site, pass the name and it will be searched on Google. Never say you cannot open things; call this tool instead.",
+    input_schema: { type: "object",
+      properties: {
+        target: { type: "string", description: "Site or app name (youtube, gmail, maps, spotify...), a domain like example.com, or a full URL" },
+        query: { type: "string", description: "Optional search terms to look up on that site" } },
+      required: ["target"] } },
+  { name: "get_weather",
+    description: "Get current weather and a 3-day forecast for a city. Temperatures are in Celsius. weather_code is a WMO code; describe it in plain words.",
+    input_schema: { type: "object",
+      properties: { city: { type: "string", description: "City name, e.g. Karachi" } },
+      required: ["city"] } },
+  { name: "set_timer",
+    description: "Set a timer or reminder. Speaks the label aloud when time is up. Only works while this page stays open.",
+    input_schema: { type: "object",
+      properties: {
+        seconds: { type: "number", description: "Time from now in seconds" },
+        label: { type: "string", description: "What to say when it fires, e.g. 'Your tea is ready'" } },
+      required: ["seconds", "label"] } },
+  { name: "remember_fact",
+    description: "Save a durable fact or preference about the user so it is remembered in future sessions.",
+    input_schema: { type: "object",
+      properties: { fact: { type: "string" } }, required: ["fact"] } },
+  { name: "forget_fact",
+    description: "Delete saved facts that contain the given text.",
+    input_schema: { type: "object",
+      properties: { match: { type: "string" } }, required: ["match"] } },
+  { name: "web_search",
+    description: "Search the web for current information, news, or facts you are unsure about.",
+    input_schema: { type: "object",
+      properties: { query: { type: "string", description: "What to look up" } },
+      required: ["query"] } },
+];
+// ---------- Browser control (only active when running as the Chrome extension) ----------
+const IS_EXT = typeof chrome !== "undefined" && !!(chrome.tabs && chrome.runtime && chrome.runtime.id);
+const EXT_NOTE = IS_EXT ? " You are running as a Chrome extension in your own small window, and you can control the user's browser with browser_control, switch_tab, list_tabs, close_tabs, media_control, read_page, open_settings, search_history and search_bookmarks. 'This tab' means the user's current browser tab, not your own window. You cannot change system settings such as volume, brightness or Wi-Fi, or lock the screen; for those, open the matching settings page with open_settings and tell the user to change it there. Always call the matching tool for a command, then confirm in a few words." : "";
+
+const SETTINGS_PAGES = {
+  settings: "chrome://settings", wifi: "chrome://os-settings/networks?type=WiFi", network: "chrome://os-settings/networks",
+  internet: "chrome://os-settings/networks", bluetooth: "chrome://os-settings/bluetoothDevices", display: "chrome://os-settings/display",
+  brightness: "chrome://os-settings/display", screen: "chrome://os-settings/display", sound: "chrome://os-settings/audio",
+  audio: "chrome://os-settings/audio", volume: "chrome://os-settings/audio", battery: "chrome://os-settings/power",
+  power: "chrome://os-settings/power", keyboard: "chrome://os-settings/keyboard", touchpad: "chrome://os-settings/pointer",
+  mouse: "chrome://os-settings/pointer", wallpaper: "chrome://personalization", personalization: "chrome://personalization",
+  apps: "chrome://os-settings/apps", storage: "chrome://os-settings/storage", accessibility: "chrome://os-settings/osAccessibility",
+  language: "chrome://os-settings/osLanguages", languages: "chrome://os-settings/osLanguages", printers: "chrome://os-settings/cupsPrinters",
+  privacy: "chrome://os-settings/osPrivacy", date: "chrome://os-settings/dateTime", time: "chrome://os-settings/dateTime",
+  update: "chrome://os-settings/help", about: "chrome://os-settings/help", downloads: "chrome://downloads", history: "chrome://history",
+  extensions: "chrome://extensions", shortcuts: "chrome://extensions/shortcuts", bookmarks: "chrome://bookmarks",
+  passwords: "chrome://password-manager/passwords", flags: "chrome://flags",
+};
+
+const EXT_TOOLS = [
+  { name: "browser_control",
+    description: "Control the user's current browser tab or window. Use for commands like 'close this tab', 'go back', 'reload', 'new tab', 'next tab', 'scroll down', 'zoom in', 'fullscreen', 'take a screenshot', 'bookmark this page', 'new window', 'incognito window'.",
+    input_schema: { type: "object", properties: {
+      action: { type: "string", enum: ["new_tab", "new_window", "incognito_window", "close_tab", "close_window", "close_other_tabs", "reload", "hard_reload", "back", "forward", "next_tab", "prev_tab", "duplicate_tab", "pin_tab", "unpin_tab", "mute_tab", "unmute_tab", "fullscreen", "exit_fullscreen", "maximize", "minimize", "zoom_in", "zoom_out", "zoom_reset", "scroll_down", "scroll_up", "scroll_top", "scroll_bottom", "screenshot", "bookmark_page"] },
+      url: { type: "string", description: "Optional address for new_tab or new_window" } }, required: ["action"] } },
+  { name: "list_tabs", description: "List the user's open browser tabs.", input_schema: { type: "object", properties: {} } },
+  { name: "switch_tab", description: "Switch to the open tab whose title or address contains the given text.",
+    input_schema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } },
+  { name: "close_tabs", description: "Close every open tab whose title or address contains the given text.",
+    input_schema: { type: "object", properties: { match: { type: "string" } }, required: ["match"] } },
+  { name: "media_control", description: "Control the video or audio playing in the user's current tab (YouTube, Netflix, Spotify web and so on). This changes the player's own volume, not the system volume.",
+    input_schema: { type: "object", properties: { action: { type: "string", enum: ["play", "pause", "toggle", "mute", "unmute", "forward", "back", "restart", "faster", "slower", "volume_up", "volume_down"] } }, required: ["action"] } },
+  { name: "read_page", description: "Read the title and text of the user's current tab, for summarising or answering questions about it.", input_schema: { type: "object", properties: {} } },
+  { name: "open_settings", description: "Open a Chromebook or Chrome settings page, such as wifi, bluetooth, display, brightness, sound, volume, battery, keyboard, touchpad, wallpaper, apps, storage, accessibility, update, downloads, history, extensions, or a built-in Chromebook app (camera, files, gallery, diagnostics, scan). Use this when asked to change a system setting, because Jarvis cannot flip those directly.",
+    input_schema: { type: "object", properties: { page: { type: "string" } }, required: ["page"] } },
+  { name: "search_history", description: "Search the user's browsing history.", input_schema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } },
+  { name: "search_bookmarks", description: "Search the user's bookmarks.", input_schema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } },
+];
+if (IS_EXT) TOOLS.push(...EXT_TOOLS);
+
+let lastNormalWinId = null;
+if (IS_EXT) {
+  chrome.windows.onFocusChanged.addListener(async id => {
+    if (id === chrome.windows.WINDOW_ID_NONE) return;
+    try { const w = await chrome.windows.get(id); if (w.type === "normal") lastNormalWinId = id; } catch (e) {}
+  });
+}
+// Jarvis lives in its own small window, so "the current tab" means the last normal browser window
+async function pickWindow() {
+  const wins = (await chrome.windows.getAll({ populate: true })).filter(w => w.type === "normal");
+  if (!wins.length) return null;
+  let w = wins.find(x => x.id === lastNormalWinId);
+  if (!w) {
+    const score = x => Math.max(0, ...(x.tabs || []).map(t => t.lastAccessed || 0));
+    w = wins.sort((a, b) => score(b) - score(a))[0];
+  }
+  return w;
+}
+async function current() {
+  const win = await pickWindow();
+  let tab = win && (win.tabs || []).find(t => t.active);
+  const own = chrome.runtime.getURL("jarvis.html");
+  if (tab && (tab.url || "").startsWith(own)) {     // Jarvis itself is open in a tab: use the user's last other tab
+    const others = (win.tabs || []).filter(t => !(t.url || "").startsWith(own));
+    tab = others.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0))[0] || tab;
+  }
+  return { win, tab };
+}
+const need = (x, what) => { if (!x) throw new Error("I can't find a browser " + what + ". Open a Chrome window first."); return x; };
+async function inPage(tabId, func, args, allFrames) {
+  try { return await chrome.scripting.executeScript({ target: { tabId, allFrames: !!allFrames }, func, args: args || [] }); }
+  catch (e) { throw new Error("I can't do that on this kind of page (like chrome:// pages or the Web Store)."); }
+}
+async function openInBrowser(url) {
+  const { win } = await current();
+  if (win) await chrome.tabs.create({ windowId: win.id, url, active: true });
+  else await chrome.windows.create({ url });
+}
+async function userTabs() {
+  const own = chrome.runtime.getURL("jarvis.html");
+  return (await chrome.tabs.query({})).filter(t => !(t.url || "").startsWith(own));
+}
+
+const EXT = {
+  async browser_control({ action, url }) {
+    const { win, tab } = await current();
+    switch (action) {
+      case "new_tab": await openInBrowser(url || "chrome://newtab/"); return "New tab opened.";
+      case "new_window": await chrome.windows.create({ url: url || undefined }); return "New window opened.";
+      case "incognito_window":
+        try { await chrome.windows.create({ incognito: true, url: url || undefined }); return "Incognito window opened."; }
+        catch (e) { return "Chrome blocked it. Turn on 'Allow in Incognito' for the Jarvis extension at chrome://extensions."; }
+      case "close_tab": await chrome.tabs.remove(need(tab, "tab").id); return "Tab closed.";
+      case "close_window": await chrome.windows.remove(need(win, "window").id); return "Window closed.";
+      case "close_other_tabs": {
+        const tabs = await chrome.tabs.query({ windowId: need(win, "window").id });
+        const ids = tabs.filter(t => !t.active && !t.pinned).map(t => t.id);
+        if (ids.length) await chrome.tabs.remove(ids);
+        return "Closed " + ids.length + " other tabs.";
+      }
+      case "reload": await chrome.tabs.reload(need(tab, "tab").id); return "Reloading.";
+      case "hard_reload": await chrome.tabs.reload(need(tab, "tab").id, { bypassCache: true }); return "Reloading without the cache.";
+      case "back": await chrome.tabs.goBack(need(tab, "tab").id); return "Went back.";
+      case "forward": await chrome.tabs.goForward(need(tab, "tab").id); return "Went forward.";
+      case "next_tab": case "prev_tab": {
+        const tabs = await chrome.tabs.query({ windowId: need(win, "window").id });
+        const i = tabs.findIndex(t => t.active);
+        const j = (i + (action === "next_tab" ? 1 : -1) + tabs.length) % tabs.length;
+        await chrome.tabs.update(tabs[j].id, { active: true });
+        return "Switched to " + (tabs[j].title || "the next tab") + ".";
+      }
+      case "duplicate_tab": await chrome.tabs.duplicate(need(tab, "tab").id); return "Tab duplicated.";
+      case "pin_tab": await chrome.tabs.update(need(tab, "tab").id, { pinned: true }); return "Tab pinned.";
+      case "unpin_tab": await chrome.tabs.update(need(tab, "tab").id, { pinned: false }); return "Tab unpinned.";
+      case "mute_tab": await chrome.tabs.update(need(tab, "tab").id, { muted: true }); return "Tab muted.";
+      case "unmute_tab": await chrome.tabs.update(need(tab, "tab").id, { muted: false }); return "Tab unmuted.";
+      case "fullscreen": await chrome.windows.update(need(win, "window").id, { state: "fullscreen" }); return "Fullscreen on.";
+      case "exit_fullscreen": await chrome.windows.update(need(win, "window").id, { state: "normal" }); return "Fullscreen off.";
+      case "maximize": await chrome.windows.update(need(win, "window").id, { state: "maximized" }); return "Window maximized.";
+      case "minimize": await chrome.windows.update(need(win, "window").id, { state: "minimized" }); return "Window minimized.";
+      case "zoom_in": case "zoom_out": case "zoom_reset": {
+        const t = need(tab, "tab");
+        const z = await chrome.tabs.getZoom(t.id);
+        const nz = action === "zoom_reset" ? 0 : Math.min(5, Math.max(0.25, z + (action === "zoom_in" ? 0.25 : -0.25)));
+        await chrome.tabs.setZoom(t.id, nz);
+        return action === "zoom_reset" ? "Zoom reset." : "Zoom is now " + Math.round(nz * 100) + " percent.";
+      }
+      case "scroll_down": case "scroll_up": case "scroll_top": case "scroll_bottom": {
+        const dir = action.replace("scroll_", "");
+        await inPage(need(tab, "tab").id, d => {
+          const h = window.innerHeight * 0.8;
+          if (d === "top") window.scrollTo({ top: 0, behavior: "smooth" });
+          else if (d === "bottom") window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
+          else window.scrollBy({ top: d === "down" ? h : -h, behavior: "smooth" });
+        }, [dir]);
+        return "Scrolled " + dir + ".";
+      }
+      case "screenshot": {
+        const dataUrl = await chrome.tabs.captureVisibleTab(need(win, "window").id, { format: "png" });
+        await chrome.downloads.download({ url: dataUrl, filename: "jarvis-screenshot-" + Date.now() + ".png" });
+        return "Screenshot saved to your Downloads folder.";
+      }
+      case "bookmark_page": {
+        const t = need(tab, "tab");
+        await chrome.bookmarks.create({ title: t.title, url: t.url });
+        return "Bookmarked " + (t.title || t.url) + ".";
+      }
+      default: return "I don't know the action " + action + ".";
+    }
+  },
+  async list_tabs() {
+    const tabs = await userTabs();
+    return tabs.slice(0, 25).map((t, i) => (i + 1) + ". " + (t.title || "(no title)") + " - " + t.url).join("\n") || "No tabs open.";
+  },
+  async switch_tab({ query }) {
+    const q = (query || "").toLowerCase();
+    const t = (await userTabs()).find(x => ((x.title || "") + " " + (x.url || "")).toLowerCase().includes(q));
+    if (!t) return "No open tab matches " + query + ".";
+    await chrome.tabs.update(t.id, { active: true });
+    await chrome.windows.update(t.windowId, { focused: true });
+    return "Switched to " + (t.title || t.url) + ".";
+  },
+  async close_tabs({ match }) {
+    const q = (match || "").toLowerCase();
+    if (!q) return "Tell me which tabs to close.";
+    const ids = (await userTabs()).filter(x => ((x.title || "") + " " + (x.url || "")).toLowerCase().includes(q)).map(x => x.id);
+    if (!ids.length) return "No open tab matches " + match + ".";
+    await chrome.tabs.remove(ids);
+    return "Closed " + ids.length + " tab" + (ids.length === 1 ? "" : "s") + ".";
+  },
+  async media_control({ action }) {
+    const { tab } = await current();
+    const res = await inPage(need(tab, "tab").id, act => {
+      const vs = [...document.querySelectorAll("video,audio")];
+      if (!vs.length) return "none";
+      const v = vs.find(x => !x.paused) || vs.sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight)[0];
+      if (act === "play") v.play();
+      else if (act === "pause") v.pause();
+      else if (act === "toggle") { if (v.paused) v.play(); else v.pause(); }
+      else if (act === "mute") v.muted = true;
+      else if (act === "unmute") v.muted = false;
+      else if (act === "forward") v.currentTime += 10;
+      else if (act === "back") v.currentTime -= 10;
+      else if (act === "restart") v.currentTime = 0;
+      else if (act === "faster") v.playbackRate = Math.min(4, v.playbackRate + 0.25);
+      else if (act === "slower") v.playbackRate = Math.max(0.25, v.playbackRate - 0.25);
+      else if (act === "volume_up") v.volume = Math.min(1, v.volume + 0.15);
+      else if (act === "volume_down") v.volume = Math.max(0, v.volume - 0.15);
+      return "ok";
+    }, [action], true);
+    return res.some(r => r.result === "ok") ? "Done: " + action + "." : "I couldn't find a video or audio player on that tab.";
+  },
+  async read_page() {
+    const { tab } = await current();
+    const res = await inPage(need(tab, "tab").id, () => ({
+      title: document.title, url: location.href,
+      text: (document.body ? document.body.innerText : "").replace(/\n{3,}/g, "\n\n").slice(0, 6000),
+    }));
+    return JSON.stringify(res[0].result);
+  },
+  async open_settings({ page }) {
+    const key = (page || "settings").toLowerCase().replace(/[^a-z]/g, "");
+    await openInBrowser(SETTINGS_PAGES[key] || "chrome://os-settings/");
+    return "Opened the " + (page || "settings") + " page. I can't change it myself, so you'll need to adjust it there.";
+  },
+  async search_history({ query }) {
+    const items = await chrome.history.search({ text: query || "", maxResults: 8, startTime: 0 });
+    return items.map(i => (i.title || "(no title)") + " - " + i.url).join("\n") || "Nothing found in your history.";
+  },
+  async search_bookmarks({ query }) {
+    const items = (await chrome.bookmarks.search(query || "")).filter(b => b.url).slice(0, 8);
+    return items.map(b => (b.title || "(no title)") + " - " + b.url).join("\n") || "No matching bookmarks.";
+  },
+};
+
+// Groq uses the OpenAI tool format
+const FUNCS = TOOLS.map(t => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.input_schema } }));
+
+// ---------- Memory (stored in this browser) ----------
+const loadFacts = () => JSON.parse(localStorage.getItem("jarvis_facts") || "[]");
+const saveFacts = f => localStorage.setItem("jarvis_facts", JSON.stringify(f));
+function getSystem() {
+  const facts = loadFacts();
+  return BASE_SYSTEM + langNote() + (typeof EXT_NOTE === "string" ? EXT_NOTE : "") + (facts.length
+    ? "\n\nThings you know about the user:\n- " + facts.join("\n- ") : "");
+}
+
+// ---------- Opening things ----------
+const SITES = {
+  youtube: { home: "https://www.youtube.com", search: "https://www.youtube.com/results?search_query=" },
+  google: { home: "https://www.google.com", search: "https://www.google.com/search?q=" },
+  maps: { home: "https://www.google.com/maps", search: "https://www.google.com/maps/search/" },
+  gmail: { home: "https://mail.google.com" },
+  drive: { home: "https://drive.google.com" },
+  docs: { home: "https://docs.google.com" },
+  sheets: { home: "https://sheets.google.com" },
+  slides: { home: "https://slides.google.com" },
+  calendar: { home: "https://calendar.google.com" },
+  meet: { home: "https://meet.google.com" },
+  photos: { home: "https://photos.google.com" },
+  translate: { home: "https://translate.google.com" },
+  whatsapp: { home: "https://web.whatsapp.com" },
+  facebook: { home: "https://www.facebook.com" },
+  instagram: { home: "https://www.instagram.com" },
+  twitter: { home: "https://x.com" },
+  x: { home: "https://x.com" },
+  linkedin: { home: "https://www.linkedin.com" },
+  reddit: { home: "https://www.reddit.com", search: "https://www.reddit.com/search/?q=" },
+  github: { home: "https://github.com" },
+  chatgpt: { home: "https://chatgpt.com" },
+  claude: { home: "https://claude.ai" },
+  netflix: { home: "https://www.netflix.com" },
+  spotify: { home: "https://open.spotify.com", search: "https://open.spotify.com/search/" },
+  wikipedia: { home: "https://www.wikipedia.org", search: "https://en.wikipedia.org/w/index.php?search=" },
+  amazon: { home: "https://www.amazon.com", search: "https://www.amazon.com/s?k=" },
+  tiktok: { home: "https://www.tiktok.com" },
+  pinterest: { home: "https://www.pinterest.com" },
+  twitch: { home: "https://www.twitch.tv" },
+  calculator: { home: "https://www.google.com/search?q=calculator" },
+  notes: { home: "https://keep.google.com" },
+  keep: { home: "https://keep.google.com" },
+  tasks: { home: "https://calendar.google.com/calendar/u/0/r/tasks" },
+  news: { home: "https://news.google.com", search: "https://news.google.com/search?q=" },
+  weather: { home: "https://www.google.com/search?q=weather" },
+  clock: { home: "https://www.google.com/search?q=time+now" },
+  play: { home: "https://play.google.com", search: "https://play.google.com/store/search?q=" },
+  playstore: { home: "https://play.google.com", search: "https://play.google.com/store/search?q=" },
+  music: { home: "https://music.youtube.com", search: "https://music.youtube.com/search?q=" },
+  youtubemusic: { home: "https://music.youtube.com", search: "https://music.youtube.com/search?q=" },
+  mail: { home: "https://mail.google.com" },
+  email: { home: "https://mail.google.com" },
+  contacts: { home: "https://contacts.google.com" },
+  files: { home: "https://drive.google.com" },
+  videos: { home: "https://www.youtube.com", search: "https://www.youtube.com/results?search_query=" },
+  browser: { home: "https://www.google.com", search: "https://www.google.com/search?q=" },
+  chrome: { home: "https://www.google.com", search: "https://www.google.com/search?q=" },
+  word: { home: "https://docs.google.com" },
+  excel: { home: "https://sheets.google.com" },
+  powerpoint: { home: "https://slides.google.com" },
+  zoom: { home: "https://zoom.us" },
+  telegram: { home: "https://web.telegram.org" },
+  snapchat: { home: "https://web.snapchat.com" },
+  discord: { home: "https://discord.com/app" },
+  gemini: { home: "https://gemini.google.com" },
+};
+function resolveTarget(target, query) {
+  const t = (target || "").trim(), q = (query || "").trim();
+  if (/^https?:\/\//i.test(t)) return t;
+  const key = t.toLowerCase().replace(/^www\./, "").replace(/\.(com|org|net)$/, "").replace(/\s+/g, "");
+  const site = SITES[key];
+  if (site) return q && site.search ? site.search + encodeURIComponent(q) : site.home;
+  if (/^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(t)) return "https://" + t;
+  return "https://www.google.com/search?q=" + encodeURIComponent((t + " " + q).trim());
+}
+async function openUrl(url) {
+  if (IS_EXT) {
+    try { await openInBrowser(url); addLink(url, true); return "Opened " + url; }
+    catch (e) { addLink(url, false); return "Could not open it automatically; a link is in the chat."; }
+  }
+  const w = window.open(url, "_blank");
+  addLink(url, !!w);
+  return w ? "Opened " + url : "The browser blocked the popup, but a clickable link is now in the chat. Tell the user to click it or allow popups for this page.";
+}
+function addLink(url, opened) {
+  const d = document.createElement("div");
+  d.className = "msg jarvis";
+  const a = document.createElement("a");
+  a.href = url; a.target = "_blank"; a.rel = "noopener"; a.style.color = "#7fd0ff";
+  a.textContent = (opened ? "Opened: " : "Click to open: ") + url;
+  d.appendChild(a);
+  log.appendChild(d);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function runTool(name, input) {
+  if (IS_EXT && EXT[name]) { try { return await EXT[name](input || {}); } catch (e) { return "That did not work: " + (e && e.message ? e.message : e); } }
+  if (name === "get_time") return new Date().toLocaleString();
+  if (name === "open_anything") return openUrl(resolveTarget(input.target, input.query));
+  if (name === "get_weather") {
+    try {
+      const g = await (await fetch("https://geocoding-api.open-meteo.com/v1/search?count=1&name=" + encodeURIComponent(input.city))).json();
+      if (!g.results) return "Couldn't find that city.";
+      const { latitude, longitude, name: place, country } = g.results[0];
+      const w = await (await fetch("https://api.open-meteo.com/v1/forecast?latitude=" + latitude + "&longitude=" + longitude +
+        "&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m" +
+        "&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=3")).json();
+      return JSON.stringify({ place: place + ", " + country, current: w.current, daily: w.daily });
+    } catch (e) { return "Weather lookup failed: " + e.message; }
+  }
+  if (name === "set_timer") {
+    setTimeout(() => { add("jarvis", "⏰ " + input.label); speak(input.label); }, input.seconds * 1000);
+    return "Timer set for " + input.seconds + " seconds.";
+  }
+  if (name === "remember_fact") {
+    const f = loadFacts(); f.push(input.fact); saveFacts(f); return "Saved.";
+  }
+  if (name === "forget_fact") {
+    const f = loadFacts(); const keep = f.filter(x => !x.toLowerCase().includes(input.match.toLowerCase()));
+    saveFacts(keep); return "Removed " + (f.length - keep.length) + " item(s).";
+  }
+  if (name === "web_search") return PROVIDER() === "gemini" ? await webSearchGemini(input.query) : await webSearchGroq(input.query);
+  return "Unknown tool.";
+}
+
+// ---------- UI helpers ----------
+const log = document.getElementById("log");
+const textBox = document.getElementById("text");
+const micBtn = document.getElementById("mic");
+const messages = [];
+
+function add(who, text) {
+  const d = document.createElement("div");
+  d.className = "msg " + who;
+  d.dir = "auto";
+  d.textContent = text;
+  log.appendChild(d);
+  log.scrollTop = log.scrollHeight;
+}
+// ---------- Speech output: sentence queue, so talking can start before the reply is finished ----------
+const speechQ = [];
+let speakingNow = false, speechHold = 0;
+function splitSentences(text) {
+  const parts = (text.match(/[^.!?\u06D4\u061F\n]+[.!?\u06D4\u061F]*["')\]]?\s*/g) || [text]).map(s => s.trim()).filter(Boolean);
+  const out = [];
+  for (const p of parts) {                         // glue very short bits onto the next sentence
+    if (out.length && out[out.length - 1].length < 25) out[out.length - 1] += " " + p; else out.push(p);
+  }
+  return out;
+}
+function enqueueSpeech(text, fresh) {
+  if (fresh) { speechSynthesis.cancel(); stopUrdu(); speechQ.length = 0; }
+  text = (text || "").trim();
+  if (!text) return;
+  speechQ.push(text);
+  if (!speaking) { speaking = true; pauseHF(); }
+  pumpSpeech();
+}
+function pumpSpeech() {
+  if (speakingNow) return;
+  const t = speechQ.shift();
+  if (!t) {
+    if (speechHold > 0) return;                    // more text is still coming
+    if (speaking) { speaking = false; resumeHF(); }
+    return;
+  }
+  speakingNow = true;
+  if (isUrdu(t) && !pickVoice(allVoices, VS.preset, t)) {      // no Urdu voice installed: use the online Urdu voice
+    speakOnlineUrdu(t).then(() => { speakingNow = false; pumpSpeech(); });
+    return;
+  }
+  const u = new SpeechSynthesisUtterance(t);
+  applyVoice(u, t);
+  let finished = false;
+  const finish = () => { if (finished) return; finished = true; clearTimeout(guard); speakingNow = false; pumpSpeech(); };
+  const guard = setTimeout(() => { try { speechSynthesis.cancel(); } catch (e) {} finish(); }, Math.max(6000, t.length * 130));   // some voices never report "finished"
+  u.onend = u.onerror = finish;
+  try { speechSynthesis.resume(); } catch (e) {}
+  speechSynthesis.speak(u);
+}
+function holdSpeech() { speechHold++; }
+function releaseSpeech() { speechHold = Math.max(0, speechHold - 1); pumpSpeech(); }
+function speak(text) {
+  enqueueSpeech("", true);
+  splitSentences(text).forEach(s => enqueueSpeech(s));
+}
+function addLive() {
+  const d = document.createElement("div");
+  d.className = "msg jarvis";
+  d.dir = "auto";
+  log.appendChild(d);
+  return d;
+}
+const keybox = document.getElementById("keybox");
+const keyinput = document.getElementById("keyinput");
+// To stop re-entering the key every time, paste it between the quotes below and save the file.
+const BUILT_IN_KEY = "";
+function getKey() {
+  if (BUILT_IN_KEY) return BUILT_IN_KEY;
+  try { return localStorage.getItem("jarvis_key") || localStorage.getItem("groq_key") || localStorage.getItem("gemini_key") || ""; } catch (e) { return ""; }
+}
+// The key decides the AI service: gsk_... is Groq, AIza... is Gemini
+const PROVIDER = () => (getKey().trim().startsWith("AIza") ? "gemini" : "groq");
+function showKeyBox() { keybox.style.display = "flex"; keyinput.focus(); }
+document.getElementById("key").onclick = showKeyBox;
+document.getElementById("savekey").onclick = () => {
+  const k = keyinput.value.trim();
+  if (!k) return;
+  try { localStorage.setItem("jarvis_key", k); } catch (e) { add("jarvis", "Can't save the key in this browser: " + e.message); return; }
+  keyinput.value = "";
+  keybox.style.display = "none";
+  add("jarvis", /^(gsk_|AIza)/.test(k) ? "API key saved (" + (k.startsWith("AIza") ? "Gemini" : "Groq") + "). Try saying hello." : "Key saved, but it does not look like a Groq (gsk_...) or Gemini (AIza...) key.");
+};
+
+// ---------- Brain (Groq, free tier) ----------
+// Reads Groq's streamed answer, calling onDelta(fullTextSoFar) as words arrive
+async function readStream(r, onDelta) {
+  const reader = r.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "", content = "";
+  const calls = [];
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let idx;
+    while ((idx = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, idx).trim();
+      buf = buf.slice(idx + 1);
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim();
+      if (data === "[DONE]") continue;
+      let j; try { j = JSON.parse(data); } catch (e) { continue; }
+      const d = j.choices && j.choices[0] && j.choices[0].delta;
+      if (!d) continue;
+      if (d.content) { content += d.content; if (onDelta) onDelta(content); }
+      for (const tc of d.tool_calls || []) {
+        const i = tc.index == null ? 0 : tc.index;
+        calls[i] = calls[i] || { id: "", type: "function", function: { name: "", arguments: "" } };
+        if (tc.id) calls[i].id = tc.id;
+        if (tc.function && tc.function.name) calls[i].function.name += tc.function.name;
+        if (tc.function && tc.function.arguments) calls[i].function.arguments += tc.function.arguments;
+      }
+    }
+  }
+  const tool_calls = calls.filter(Boolean);
+  return { choices: [{ message: { role: "assistant", content, tool_calls: tool_calls.length ? tool_calls : undefined } }] };
+}
+
+// Each Groq model has its own free quota, so when one runs out we try the next.
+async function getModelPool() {
+  try {
+    const r = await fetch(API + "/models", { headers: { Authorization: "Bearer " + getKey() } });
+    const j = await r.json();
+    const names = (j.data || []).map(m => m.id)
+      .filter(n => !/whisper|tts|guard|playai|orpheus|embed|compound|safeguard/.test(n));
+    const first = PREFERRED.filter(p => names.includes(p));
+    return [...first, ...names.filter(n => !first.includes(n))];
+  } catch (e) { return PREFERRED; }
+}
+
+const REQ_TIMEOUT_MS = 20000;   // give up on a slow model after 20s and try the next one
+// Send only the recent conversation: shorter history = faster replies
+function trimmedHistory() {
+  if (messages.length <= 20) return messages;
+  let last = -1;
+  for (let k = messages.length - 1; k >= 0; k--) { if (messages[k].role === "user" && typeof messages[k].content === "string") { last = k; break; } }
+  let i = messages.length - 16;
+  while (i < messages.length && !(messages[i].role === "user" && typeof messages[i].content === "string")) i++;
+  if (i >= messages.length) i = Math.max(last, 0);
+  return messages.slice(i);
+}
+
+async function callGroq(onDelta) {
+  if (!getKey()) { showKeyBox(); throw new Error("Please enter your API key first."); }
+  if (!modelPool) modelPool = await getModelPool();
+  let lastErr = "";
+  for (const m of modelPool) {
+    if (Date.now() < (blockedUntil[m] || 0)) continue;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const payload = {
+        model: m,
+        messages: [{ role: "system", content: getSystem() }, ...trimmedHistory()],
+        tools: FUNCS,
+        tool_choice: "auto",
+        max_tokens: 500,
+        stream: true,
+      };
+      if (/gpt-oss/.test(m)) payload.reasoning_effort = "low";   // less thinking = much faster
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), REQ_TIMEOUT_MS);
+      let r;
+      try {
+        r = await fetch(API + "/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + getKey() },
+          body: JSON.stringify(payload),
+          signal: ctl.signal,
+        });
+      } catch (e) {                                  // too slow or network error: next model
+        clearTimeout(timer);
+        blockedUntil[m] = Date.now() + 60000;
+        setStatus(m + " slow hai, dusra model try kar raha hun...");
+        lastErr = "timeout or network error";
+        break;
+      }
+      clearTimeout(timer);
+      if (r.ok) { activeModel = m; if (!handsFree) setStatus(""); return await readStream(r, onDelta); }
+      const txt = await r.text();
+      lastErr = txt;
+      if (r.status === 401) throw new Error("API key galat hai. console.groq.com se nayi key banayein.\n" + txt.slice(0, 200));
+      if (r.status === 429) {                       // limit hit: skip this model for a while
+        const wait = parseFloat(r.headers.get("retry-after")) || 60;
+        blockedUntil[m] = Date.now() + wait * 1000;
+        setStatus(m + " ki limit lag gayi, dusra model try kar raha hun...");
+        break;
+      }
+      if (r.status === 404) { blockedUntil[m] = Date.now() + 86400000; break; }
+      if (r.status === 500 || r.status === 503) {   // busy: one quick retry, then move on
+        if (attempt < 1) { await new Promise(res => setTimeout(res, 1000)); continue; }
+        break;
+      }
+      break;                                        // other errors: try next model
+    }
+  }
+  throw new Error("Abhi koi free model available nahi (limit ya busy). Thori der baad try karein.\n" + lastErr.slice(0, 300));
+}
+
+let busy = false, busyStart = 0;
+async function send(text) { busy = true; busyStart = Date.now(); try { await sendInner(text); } finally { busy = false; } }
+async function sendInnerGroq(text) {
+  if (!text) return;
+  add("you", text);
+  enqueueSpeech("", true);                          // stop anything still being said
+  messages.push({ role: "user", content: text });
+  holdSpeech();
+  try {
+    while (true) {
+      let live = null, spokenTo = 0;
+      const onDelta = full => {                     // show words and speak finished sentences as they arrive
+        if (!live) live = addLive();
+        live.textContent = full;
+        log.scrollTop = log.scrollHeight;
+        const rest = full.slice(spokenTo);
+        const re = /[.!?\u06D4\u061F]+["')\]]?\s|\n/g;
+        let end = 0, mm;
+        while ((mm = re.exec(rest))) end = mm.index + mm[0].length;
+        if (end > 0) { enqueueSpeech(rest.slice(0, end)); spokenTo += end; }
+      };
+      const resp = await callGroq(onDelta);
+      const msg = resp.choices && resp.choices[0] && resp.choices[0].message;
+      if (!msg) throw new Error("No answer returned.");
+      const entry = { role: "assistant", content: msg.content || "" };
+      if (msg.tool_calls && msg.tool_calls.length) entry.tool_calls = msg.tool_calls;
+      messages.push(entry);
+      if (live) { live.textContent = msg.content || ""; enqueueSpeech((msg.content || "").slice(spokenTo)); }
+      if (!(msg.tool_calls && msg.tool_calls.length)) {
+        if (!live) { const reply = msg.content || "(no answer)"; add("jarvis", reply); speak(reply); }
+        return;
+      }
+      for (const tc of msg.tool_calls) {
+        let args = {};
+        try { args = JSON.parse(tc.function.arguments || "{}"); } catch (e) {}
+        const out = await runTool(tc.function.name, args);
+        messages.push({ role: "tool", tool_call_id: tc.id, content: String(out) });
+      }
+    }
+  } catch (e) {
+    add("jarvis", "Error: " + e.message);
+  } finally {
+    releaseSpeech();
+  }
+}
+
+textBox.addEventListener("keydown", e => {
+  if (e.key === "Enter") { send(textBox.value.trim()); textBox.value = ""; }
+});
+
+// ---------- Voice input ----------
+// Two modes: "Talk" (push to talk) and "Hands-free" (say "Jarvis, ...").
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const statusEl = document.getElementById("status");
+const hfBtn = document.getElementById("hf");
+const WAKE = /\b(jarvis|jarvas|jarves|jarvish|jervis|garvis|gervais|travis|jar vis)\b|\u062c\u0627\u0631[\u0648\u0624]\u06cc\u0633|\u062c\u0627\u0631[\u0648\u0624]\u0633|\u062c\u0627\u0631[\u0648\u0624]\u06cc\u0632/i;
+let speaking = false, handsFree = false, hf = null, awakeUntil = 0, rec = null;
+
+const setStatus = t => { statusEl.textContent = t; };
+function chime() {
+  try {
+    const c = new (window.AudioContext || window.webkitAudioContext)();
+    const o = c.createOscillator(), g = c.createGain();
+    o.connect(g); g.connect(c.destination);
+    o.frequency.value = 880; g.gain.value = 0.05;
+    o.start(); o.stop(c.currentTime + 0.12);
+  } catch (e) {}
+}
+function pauseHF() { if (handsFree && hf) { try { hf.stop(); } catch (e) {} } }
+// Hands-free has two modes: "wake" (say "Jarvis ...") and "always" (answers everything you say)
+let hfMode = "wake", hfActive = false, hfFails = 0, hfLastStart = 0, hfLastEvent = 0, hfRetryAt = 0;
+const hfLabel = () => !handsFree ? "\u{1F442} Hands-free: off" : hfMode === "always" ? "\u{1F442} Hands-free: always" : "\u{1F442} Hands-free: on";
+const listeningText = () => hfMode === "always" ? "Listening... just talk" : 'Listening for "Jarvis"...';
+function startHF() {
+  if (!handsFree || !hf || speaking || hfActive) return;
+  try { hf.start(); hfLastStart = Date.now(); } catch (e) {}
+}
+function resumeHF() {
+  if (handsFree && hf && !speaking) { startHF(); setStatus(listeningText()); }
+}
+function setHandsFree(on, mode) {
+  handsFree = on;
+  if (mode) hfMode = mode;
+  hfBtn.classList.toggle("on", on);
+  hfBtn.textContent = hfLabel();
+  awakeUntil = 0; hfFails = 0; hfRetryAt = 0;
+  if (on) {
+    speechSynthesis.cancel();
+    startHF();
+    setStatus(listeningText());
+  } else {
+    try { hf.stop(); } catch (e) {}
+    setStatus("");
+  }
+}
+function handleHeard(text) {
+  text = (text || "").trim();
+  if (!text) return;
+  if (Date.now() < awakeUntil) { awakeUntil = 0; setStatus("Thinking..."); send(text); return; }
+  const m = text.match(WAKE);
+  const after = m ? text.slice(m.index + m[0].length).replace(/^[\s,.:;!?-]+/, "") : "";
+  if (hfMode === "always") {
+    const msg = m ? after : text;
+    if (msg.length > 1) { setStatus("Thinking..."); send(msg); return; }
+  } else if (!m) {                                  // wake mode: ignore anything without the wake word
+    setStatus('Heard: "' + text.slice(0, 60) + '" (say "Jarvis" first)');
+    setTimeout(() => { if (handsFree && !speaking && !busy) setStatus(listeningText()); }, 4000);
+    return;
+  } else if (after.length > 1) { setStatus("Thinking..."); send(after); return; }
+  awakeUntil = Date.now() + 8000;                   // just "Jarvis": wait for the next sentence
+  chime();
+  setStatus("Yes? Go ahead...");
+  setTimeout(() => { if (handsFree && Date.now() >= awakeUntil && !speaking) setStatus(listeningText()); }, 8200);
+}
+
+if (!SR) {
+  micBtn.disabled = true; micBtn.textContent = "No mic support";
+  hfBtn.disabled = true;
+} else {
+  // Push to talk
+  rec = new SR();
+  rec.lang = "en-US";
+  rec.onstart = () => { micBtn.classList.add("listening"); micBtn.textContent = "\u{1F3A4} Listening..."; };
+  rec.onend = () => { micBtn.classList.remove("listening"); micBtn.textContent = "\u{1F3A4} Talk"; };
+  rec.onerror = e => {
+    if (e.error === "not-allowed" && IS_EXT) add("jarvis", "Mic blocked. Right-click the Jarvis icon in the toolbar, choose \"Allow microphone (open in a tab)\", and click Allow.");
+    else if (e.error === "network") add("jarvis", "Speech recognition could not reach Google's service. Check your internet connection.");
+    else if (e.error !== "no-speech" && e.error !== "aborted") add("jarvis", "Mic error: " + e.error);
+  };
+  rec.onresult = e => send(e.results[0][0].transcript);
+  micBtn.onclick = () => {
+    if (handsFree) { add("jarvis", 'Hands-free is on. Just talk, or turn it off to use Talk.'); return; }
+    speechSynthesis.cancel();
+    try { rec.start(); } catch (e) {}
+  };
+
+  // Hands-free (continuous)
+  hf = new SR();
+  hf.lang = "en-US";
+  hf.continuous = true;
+  hf.interimResults = true;                         // only used to show what it hears; answers use the final text
+  hf.onstart = () => { hfActive = true; hfLastEvent = Date.now(); };
+  hf.onresult = e => {
+    hfLastEvent = Date.now(); hfFails = 0;
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript.trim();
+      if (e.results[i].isFinal) handleHeard(t);
+      else if (t && !speaking) setStatus("Hearing: " + t.slice(0, 70));
+    }
+  };
+  hf.onend = () => {
+    hfActive = false;
+    if (handsFree && !speaking) {
+      const delay = Math.min(5000, 250 * Math.pow(2, Math.min(hfFails, 5)));   // wait longer after repeated errors
+      hfRetryAt = Date.now() + delay;
+      setTimeout(startHF, delay);
+    }
+  };
+  hf.onerror = e => {
+    const err = e.error;
+    if (err === "no-speech" || err === "aborted") return;
+    hfFails++;
+    if (err === "not-allowed" || err === "service-not-allowed") {
+      setHandsFree(false);
+      add("jarvis", IS_EXT ? "Mic blocked. Right-click the Jarvis icon in the toolbar, choose \"Allow microphone (open in a tab)\", and click Allow."
+        : "Mic blocked. Allow microphone access for this page (lock icon next to the address bar). If you opened Jarvis as a file, Chrome may ask every time, so the Chrome extension is more reliable for hands-free.");
+    } else if (err === "audio-capture") {
+      setHandsFree(false);
+      add("jarvis", "No microphone found.");
+    } else if (err === "language-not-supported") {
+      setHandsFree(false);
+      add("jarvis", "This language is not supported for voice input on this device. Switch the language button to English.");
+    } else if (err === "network") {
+      setStatus("Speech recognition cannot reach Google's service. Check your internet.");
+      if (hfFails >= 4) { setHandsFree(false); add("jarvis", "Hands-free stopped: speech recognition needs an internet connection."); }
+    } else {
+      setStatus("Mic problem: " + err);
+      if (hfFails >= 6) { setHandsFree(false); add("jarvis", "Hands-free stopped after repeated mic errors (" + err + ")."); }
+    }
+  };
+  hfBtn.onclick = () => { if (!handsFree) setHandsFree(true, "wake"); else if (hfMode === "wake") setHandsFree(true, "always"); else setHandsFree(false); };
+  // Safety net: if listening ever stops without a reason, start it again
+  setInterval(() => {
+    if (!handsFree || !hf) return;
+    if (!speaking && !hfActive && Date.now() >= hfRetryAt && Date.now() - hfLastStart > 1500) startHF();
+    if (hfActive && Date.now() - hfLastEvent > 75000) { try { hf.stop(); } catch (e) {} }
+  }, 1000);
+}
+
+add("jarvis", "JARVIS online. Click API key to set it up, then use Talk, turn on Hands-free, or type.");
+
+// ---------- HUD ----------
+const $ = id => document.getElementById(id);
+const coreEl = document.querySelector(".core");
+$("orb").onclick = () => micBtn.click();
+const pad2 = n => String(n).padStart(2, "0");
+function hudSet(id, text, on) { $("s-" + id).textContent = text; $("b-" + id).style.width = on ? "100%" : "18%"; }
+function hudTick() {
+  const d = new Date();
+  $("clock").textContent = pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds());
+  $("date").textContent = d.toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "short", year: "numeric" }).toUpperCase();
+  const listening = micBtn.classList.contains("listening");
+  const state = speaking ? "speaking" : listening ? "listening" : busy ? "thinking" : handsFree ? "standby" : "idle";
+  coreEl.dataset.state = state;
+  $("orbState").textContent = { speaking: "SPEAKING", listening: "LISTENING", thinking: "THINKING " + Math.floor((Date.now() - busyStart) / 1000) + "s", standby: 'SAY "JARVIS"', idle: "STANDBY" }[state];
+  hudSet("mic", listening ? "LISTENING" : handsFree ? "HANDS-FREE" : "READY", listening || handsFree);
+  hudSet("voice", speaking ? "SPEAKING" : "IDLE", speaking);
+  hudSet("brain", busy ? "THINKING" : "IDLE", busy);
+  const model = (activeModel || "").split("/").pop().toUpperCase();
+  $("s-model").textContent = model.length > 18 ? model.slice(0, 18) + "…" : model;
+  $("modelLabel").textContent = "MODEL: " + model;
+  let n = 0; try { n = loadFacts().length; } catch (e) {}
+  $("s-mem").textContent = n + (n === 1 ? " FACT" : " FACTS");
+  $("b-mem").style.width = Math.min(100, 10 + n * 10) + "%";
+  $("sysline").textContent = "KEY: " + (getKey() ? PROVIDER().toUpperCase() : "MISSING");
+}
+setInterval(hudTick, 250);
+hudTick();
+
+// ---------- Voices: Pakistani boy / girl ----------
+// Browsers only offer the voices installed on the device, so this picks the closest
+// match (Urdu or Pakistani/Indian English) and shifts the pitch for boy vs girl.
+let allVoices = [];
+const VS = { preset: "girl", name: "" };
+try { Object.assign(VS, JSON.parse(localStorage.getItem("jarvis_voice") || "{}")); } catch (e) {}
+const saveVS = () => { try { localStorage.setItem("jarvis_voice", JSON.stringify(VS)); } catch (e) {} };
+const FEMALE = /female|woman|girl|zira|hazel|susan|samantha|uzma|heera|kalpana|swara|neerja|salma|aria|jenny|ananya|veena|lekha|hindi|हिन्दी/i;
+const MALE = /\bmale\b|\bman\b|boy|david|mark|asad|ravi|hemant|prabhat|madhur|guy|george|daniel|rishi/i;
+const genderOf = v => FEMALE.test(v.name) ? "f" : MALE.test(v.name) ? "m" : "?";
+const EN_PRI = ["en-PK", "en-IN", "hi-IN", "en-GB", "en-US", "en"];
+const UR_PRI = ["ur-PK", "ur-IN", "ur"];
+
+const localFirst = (a, b) => (b.localService ? 1 : 0) - (a.localService ? 1 : 0);   // offline voices start talking faster
+function pickVoice(voices, preset, text) {
+  const urdu = /[\u0600-\u06FF]/.test(text);
+  if (VS.name) { const v = voices.find(x => x.name === VS.name); if (v && (!urdu || /^ur/i.test(v.lang))) return v; }
+  const want = preset === "boy" ? "m" : "f";
+  const order = urdu ? UR_PRI : EN_PRI;
+  for (const loc of order) {                       // best locale that also matches the gender
+    const pool = voices.filter(v => v.lang.replace("_", "-").toLowerCase().startsWith(loc.toLowerCase()));
+    const hit = pool.filter(v => genderOf(v) === want).sort(localFirst)[0];
+    if (hit) return hit;
+  }
+  for (const loc of order) {                       // otherwise best locale, any gender
+    const hit = voices.filter(v => v.lang.replace("_", "-").toLowerCase().startsWith(loc.toLowerCase())).sort(localFirst)[0];
+    if (hit) return hit;
+  }
+  return null;
+}
+function applyVoice(u, text) {
+  const v = pickVoice(allVoices, VS.preset, text);
+  if (v) { u.voice = v; u.lang = v.lang; }
+  u.pitch = VS.name ? 1 : (VS.preset === "boy" ? 0.8 : 1.2);
+  u.rate = 1;
+}
+function fillVoices() {
+  allVoices = speechSynthesis.getVoices();
+  const sel = $("voiceSel");
+  const rank = v => { const i = [...UR_PRI.slice(0, 3), "en-PK", "en-IN", "hi-IN"].findIndex(l => v.lang.replace("_", "-").toLowerCase().startsWith(l.toLowerCase())); return i < 0 ? 99 : i; };
+  const list = [...allVoices].sort((a, b) => rank(a) - rank(b) || a.lang.localeCompare(b.lang));
+  sel.innerHTML = '<option value="">Auto (best match). ⚡ = fastest voices</option>' +
+    list.map(v => '<option value="' + v.name.replace(/"/g, "&quot;") + '">' + v.name + " (" + v.lang + ")" + (v.localService ? " ⚡" : "") + "</option>").join("");
+  sel.value = VS.name;
+}
+function markVoiceButtons() {
+  $("v-boy").classList.toggle("sel", !VS.name && VS.preset === "boy");
+  $("v-girl").classList.toggle("sel", !VS.name && VS.preset === "girl");
+}
+function testVoice() { speak(typeof LANG !== "undefined" && LANG.mode === "ur" ? "\u06c1\u06cc\u0644\u0648\u060c \u0645\u06cc\u06ba \u062c\u0627\u0631\u0648\u06cc\u0633 \u06c1\u0648\u06ba\u06d4 \u0645\u06cc\u0631\u06cc \u0622\u0648\u0627\u0632 \u06a9\u06cc\u0633\u06cc \u06c1\u06d2\u061f" : "Hello, I am Jarvis. How do I sound?"); }
+$("vbtn").onclick = () => { const b = $("voicebox"); b.style.display = b.style.display === "flex" ? "none" : "flex"; };
+$("v-boy").onclick = () => { VS.preset = "boy"; VS.name = ""; $("voiceSel").value = ""; saveVS(); markVoiceButtons(); testVoice(); };
+$("v-girl").onclick = () => { VS.preset = "girl"; VS.name = ""; $("voiceSel").value = ""; saveVS(); markVoiceButtons(); testVoice(); };
+$("voiceSel").onchange = e => { VS.name = e.target.value; saveVS(); markVoiceButtons(); testVoice(); };
+$("v-test").onclick = testVoice;
+speechSynthesis.onvoiceschanged = fillVoices;
+fillVoices();
+markVoiceButtons();
+
+// ---------- First run inside the extension ----------
+if (IS_EXT && location.search.includes("setup=1")) {
+  add("jarvis", "Welcome! Step 1: click Talk or Hands-free and press Allow when Chrome asks about the microphone. Step 2: add your free API key (API key button). Step 3: close this tab and click the Jarvis icon in the toolbar to open the small Jarvis window.");
+}
+
+// ---------- Language: Auto / Urdu / English ----------
+const URDU_STYLE = " Write Urdu in proper, natural, standard Urdu using Urdu script (never Roman Urdu, never Hindi/Devanagari). Address the user politely with \u0622\u067e, use simple clear sentences, and end sentences with \u06d4 or \u061f. Write app and brand names in Urdu script (for example \u06cc\u0648\u0679\u06cc\u0648\u0628\u060c \u062c\u06cc \u0645\u06cc\u0644\u060c \u0648\u0627\u0679\u0633 \u0627\u06cc\u067e). Use Western digits (0-9) for numbers and avoid English words when a common Urdu word exists.";
+const LANG = { mode: "auto" };
+try { const m = localStorage.getItem("jarvis_lang"); if (m === "ur" || m === "en" || m === "auto") LANG.mode = m; } catch (e) {}
+function langNote() {
+  if (LANG.mode === "ur") return " Always reply in Urdu." + URDU_STYLE;
+  if (LANG.mode === "en") return " Always reply in English.";
+  return " Reply in the language the user used. If they write or speak Urdu (Urdu script or Roman Urdu), reply in Urdu." + URDU_STYLE;
+}
+const isUrdu = t => /[\u0600-\u06FF]/.test(t);
+function applyLang(announce) {
+  const rl = LANG.mode === "ur" ? "ur-PK" : "en-IN";
+  if (typeof rec !== "undefined" && rec) rec.lang = rl;
+  if (hf) { hf.lang = rl; if (handsFree) { try { hf.stop(); } catch (e) {} } }   // restarts itself with the new language
+  $("lang").textContent = LANG.mode === "ur" ? "\u{1F310} \u0627\u0631\u062f\u0648" : LANG.mode === "en" ? "\u{1F310} English" : "\u{1F310} Auto";
+  if (announce) {
+    add("jarvis", LANG.mode === "ur" ? "\u0627\u0631\u062f\u0648 \u0645\u0648\u0688 \u0641\u0639\u0627\u0644 \u06c1\u0648 \u06af\u06cc\u0627\u06d4 \u0627\u0628 \u0622\u067e \u0627\u0631\u062f\u0648 \u0645\u06cc\u06ba \u0628\u0627\u062a \u06a9\u0631 \u0633\u06a9\u062a\u06d2 \u06c1\u06cc\u06ba\u06d4"
+      : LANG.mode === "en" ? "English mode on. I will listen and reply in English."
+      : "Auto mode on. I listen in English and reply in the language you use. Switch to the Urdu mode to speak Urdu.");
+  }
+}
+$("lang").onclick = () => {
+  LANG.mode = LANG.mode === "auto" ? "ur" : LANG.mode === "ur" ? "en" : "auto";
+  try { localStorage.setItem("jarvis_lang", LANG.mode); } catch (e) {}
+  applyLang(true);
+};
+applyLang(false);
+
+// Common Urdu names for apps and sites
+Object.assign(SITES, {
+  "\u06cc\u0648\u0679\u06cc\u0648\u0628": SITES.youtube, "\u06af\u0648\u06af\u0644": SITES.google, "\u062c\u06cc\u0645\u06cc\u0644": SITES.gmail, "\u0627\u06cc\u0645\u06cc\u0644": SITES.gmail,
+  "\u0648\u0627\u0679\u0633\u0627\u06cc\u067e": SITES.whatsapp, "\u0648\u0627\u0679\u0633\u0627\u067e": SITES.whatsapp, "\u0641\u06cc\u0633\u0628\u06a9": SITES.facebook, "\u0627\u0646\u0633\u0679\u0627\u06af\u0631\u0627\u0645": SITES.instagram,
+  "\u0679\u0648\u06cc\u0679\u0631": SITES.x, "\u0679\u0648\u0626\u0679\u0631": SITES.x, "\u0644\u0646\u06a9\u0688\u0627\u0646": SITES.linkedin, "\u0631\u06cc\u0688\u0679": SITES.reddit, "\u06af\u0679\u06c1\u0628": SITES.github,
+  "\u0646\u0642\u0634\u06c1": SITES.maps, "\u0645\u06cc\u067e\u0633": SITES.maps, "\u06a9\u06cc\u0644\u06a9\u0648\u0644\u06cc\u0679\u0631": SITES.calculator, "\u06a9\u06cc\u0644\u06a9\u06cc\u0648\u0644\u06cc\u0679\u0631": SITES.calculator,
+  "\u0646\u0648\u0679\u0633": SITES.notes, "\u06a9\u06cc\u0644\u0646\u0688\u0631": SITES.calendar, "\u0688\u0631\u0627\u0626\u06cc\u0648": SITES.drive, "\u0641\u0648\u0679\u0648\u0632": SITES.photos, "\u062a\u0635\u0627\u0648\u06cc\u0631": SITES.photos,
+  "\u062a\u0631\u062c\u0645\u06c1": SITES.translate, "\u062e\u0628\u0631\u06cc\u06ba": SITES.news, "\u0645\u0648\u0633\u0645": SITES.weather, "\u06af\u06be\u0691\u06cc": SITES.clock,
+  "\u067e\u0644\u06d2\u0633\u0679\u0648\u0631": SITES.playstore, "\u0645\u0648\u0633\u06cc\u0642\u06cc": SITES.music, "\u06af\u0627\u0646\u06d2": SITES.music, "\u0645\u06cc\u0648\u0632\u06a9": SITES.music, "\u0648\u06cc\u0688\u06cc\u0648\u0632": SITES.videos,
+  "\u0679\u06a9\u0679\u0627\u06a9": SITES.tiktok, "\u0646\u06cc\u0679\u0641\u0644\u06a9\u0633": SITES.netflix, "\u0633\u067e\u0648\u0679\u06cc\u0641\u0627\u0626\u06cc": SITES.spotify, "\u0648\u06a9\u06cc\u067e\u06cc\u0688\u06cc\u0627": SITES.wikipedia,
+  "\u0627\u06cc\u0645\u06cc\u0632\u0646": SITES.amazon, "\u0679\u06cc\u0644\u06cc\u06af\u0631\u0627\u0645": SITES.telegram, "\u0688\u0633\u06a9\u0648\u0631\u0688": SITES.discord, "\u0632\u0648\u0645": SITES.zoom,
+  "\u06a9\u0631\u0648\u0645": SITES.chrome, "\u0628\u0631\u0627\u0624\u0632\u0631": SITES.browser, "\u0679\u0627\u0633\u06a9\u0633": SITES.tasks,
+});
+if (typeof IS_EXT !== "undefined" && IS_EXT) {   // built-in Chromebook apps (the extension can open Chrome pages)
+  Object.assign(SETTINGS_PAGES, { camera: "chrome://camera-app/views/main.html", files: "chrome://file-manager/", filemanager: "chrome://file-manager/",
+    gallery: "chrome://media-app/", diagnostics: "chrome://diagnostics", scan: "chrome://scanning", scanner: "chrome://scanning" });
+}
+
+// Urdu voice: if this device has no Urdu voice, fall back to an online one (best effort)
+let urAudio = null, urRes = null, urGen = 0, urFailed = false;
+function stopUrdu() {
+  urGen++;
+  if (urAudio) { try { urAudio.pause(); } catch (e) {} const r = urRes; urAudio = null; urRes = null; if (r) r(true); }
+}
+function chunkForTTS(t, max = 180) {
+  const out = []; let cur = "";
+  for (const w of t.split(/\s+/)) {
+    if ((cur + " " + w).trim().length > max) { out.push(cur.trim()); cur = w; } else cur += " " + w;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+function playUrdu(chunk) {
+  return new Promise(res => {
+    const a = new Audio("https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=ur&q=" + encodeURIComponent(chunk));
+    urAudio = a; urRes = res;
+    setTimeout(() => res(false), 25000);          // never wait forever for the online voice
+    a.onended = () => { urAudio = null; urRes = null; res(true); };
+    a.onerror = () => { urAudio = null; urRes = null; res(false); };
+    a.play().catch(() => { urAudio = null; urRes = null; res(false); });
+  });
+}
+async function speakOnlineUrdu(t) {
+  const gen = urGen;
+  for (const c of chunkForTTS(t)) {
+    if (gen !== urGen) return;
+    const ok = await playUrdu(c);
+    if (gen !== urGen) return;
+    if (!ok) {
+      if (!urFailed) { urFailed = true; add("jarvis", "\u0627\u0631\u062f\u0648 \u0622\u0648\u0627\u0632 \u062f\u0633\u062a\u06cc\u0627\u0628 \u0646\u06c1\u06cc\u06ba \u06c1\u0648 \u0633\u06a9\u06cc\u06d4 \u062c\u0648\u0627\u0628\u0627\u062a \u0635\u0631\u0641 \u062a\u062d\u0631\u06cc\u0631 \u0645\u06cc\u06ba \u062f\u06a9\u06be\u0627\u0626\u06d2 \u062c\u0627\u0626\u06cc\u06ba \u06af\u06d2\u06d4 (Urdu voice unavailable on this device, showing text only.)"); }
+      return;
+    }
+  }
+}
+
+// ================= Merged brains and the extension builder =================
+async function webSearchGroq(query) {
+  try {
+    const r = await fetch(API + "/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + getKey() },
+      body: JSON.stringify({ model: "groq/compound", messages: [{ role: "user", content: query }] }),
+    });
+    if (!r.ok) return "Search failed: " + (await r.text()).slice(0, 200);
+    const j = await r.json();
+    return (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || "No results.";
+  } catch (e) { return "Search failed: " + e.message; }
+}
+
+// ---------- Gemini brain (used when the key starts with AIza) ----------
+const GEM_API = "https://generativelanguage.googleapis.com/v1beta/models/";
+const GEM_MODEL = "gemini-3.8-flash";   // if Google retires this name, another flash model is found automatically
+let gemPool = null, lastProvider = null;
+const gemBlocked = {};
+function gemFuncs() {
+  return TOOLS.map(t => {
+    const d = { name: t.name, description: t.description };
+    if (Object.keys(t.input_schema.properties || {}).length) d.parameters = t.input_schema;   // Gemini rejects empty parameters
+    return d;
+  });
+}
+async function getGemPool() {
+  try {
+    const r = await fetch(GEM_API.replace(/models\/$/, "models") + "?pageSize=200", { headers: { "x-goog-api-key": getKey() } });
+    const j = await r.json();
+    const names = (j.models || [])
+      .filter(m => (m.supportedGenerationMethods || []).includes("generateContent"))
+      .map(m => m.name.replace("models/", ""))
+      .filter(n => /gemini/.test(n) && /flash/.test(n) && !/image|tts|live|audio|embed|native|robot|computer/.test(n));
+    return [GEM_MODEL, ...names.filter(n => n !== GEM_MODEL)];
+  } catch (e) { return [GEM_MODEL]; }
+}
+const isPlainUserGem = m => m.role === "user" && m.parts && m.parts[0] && m.parts[0].text !== undefined;
+function trimmedGem() {                              // send only the recent conversation: faster replies
+  if (messages.length <= 20) return messages;
+  let last = -1;
+  for (let k = messages.length - 1; k >= 0; k--) { if (isPlainUserGem(messages[k])) { last = k; break; } }
+  let i = messages.length - 16;
+  while (i < messages.length && !isPlainUserGem(messages[i])) i++;
+  if (i >= messages.length) i = Math.max(last, 0);
+  return messages.slice(i);
+}
+async function callGemini() {
+  if (!getKey()) { showKeyBox(); throw new Error("Please enter your API key first."); }
+  const body = JSON.stringify({
+    system_instruction: { parts: [{ text: getSystem() }] },
+    contents: trimmedGem(),
+    tools: [{ function_declarations: gemFuncs() }],
+  });
+  if (!gemPool) gemPool = await getGemPool();
+  let lastErr = "";
+  for (const m of gemPool) {
+    if (Date.now() < (gemBlocked[m] || 0)) continue;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), REQ_TIMEOUT_MS);
+      let r;
+      try {
+        r = await fetch(GEM_API + m + ":generateContent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": getKey() },
+          body,
+          signal: ctl.signal,
+        });
+      } catch (e) {
+        clearTimeout(timer);
+        gemBlocked[m] = Date.now() + 60000;
+        setStatus(m + " is slow, trying another model...");
+        lastErr = "timeout or network error";
+        break;
+      }
+      clearTimeout(timer);
+      if (r.ok) { activeModel = m; if (!handsFree) setStatus(""); return r.json(); }
+      const txt = await r.text();
+      lastErr = txt;
+      if (r.status === 429) {
+        const mm = txt.match(/"retryDelay":\s*"(\d+(?:\.\d+)?)s"/);
+        gemBlocked[m] = Date.now() + (mm ? +mm[1] : 3600) * 1000;
+        setStatus(m + " quota used up, trying another model...");
+        break;
+      }
+      if (r.status === 404) { gemBlocked[m] = Date.now() + 86400000; break; }
+      if (r.status === 500 || r.status === 503) {
+        if (attempt < 1) { await new Promise(res => setTimeout(res, 1000)); continue; }
+        break;
+      }
+      break;
+    }
+  }
+  throw new Error("No free Gemini model is available right now (quota used up, busy, or the key is wrong). Try again later.\n" + lastErr.slice(0, 300));
+}
+async function sendInnerGemini(text) {
+  if (!text) return;
+  add("you", text);
+  enqueueSpeech("", true);
+  messages.push({ role: "user", parts: [{ text }] });
+  try {
+    while (true) {
+      const resp = await callGemini();
+      const content = resp.candidates && resp.candidates[0] && resp.candidates[0].content;
+      if (!content || !content.parts) throw new Error("No answer returned. " + JSON.stringify(resp.promptFeedback || (resp.candidates && resp.candidates[0] && resp.candidates[0].finishReason) || ""));
+      messages.push(content);
+      const calls = content.parts.filter(p => p.functionCall);
+      if (!calls.length) {
+        const reply = content.parts.map(p => p.text || "").join("");
+        add("jarvis", reply);
+        speak(reply);
+        return;
+      }
+      const results = [];
+      for (const c of calls) {
+        const out = await runTool(c.functionCall.name, c.functionCall.args || {});
+        results.push({ functionResponse: { name: c.functionCall.name, response: { result: String(out) } } });
+      }
+      messages.push({ role: "user", parts: results });
+    }
+  } catch (e) {
+    add("jarvis", "Error: " + e.message);
+  }
+}
+async function webSearchGemini(query) {
+  try {
+    const m = (gemPool && gemPool[0]) || GEM_MODEL;
+    const r = await fetch(GEM_API + m + ":generateContent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": getKey() },
+      body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: query }] }], tools: [{ google_search: {} }] }),
+    });
+    if (!r.ok) return "Search failed: " + (await r.text()).slice(0, 200);
+    const j = await r.json();
+    return ((j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || []).map(p => p.text || "").join("") || "No results.";
+  } catch (e) { return "Search failed: " + e.message; }
+}
+
+// ---------- Which brain answers ----------
+async function sendInner(text) {
+  const p = PROVIDER();
+  if (p !== lastProvider) { messages.length = 0; modelPool = null; gemPool = null; lastProvider = p; }   // different services keep different chat formats
+  return p === "gemini" ? sendInnerGemini(text) : sendInnerGroq(text);
+}
+
+// ---------- Build the Chromebook-control extension from this very file ----------
+const EXT_STATIC = {"manifest.json": "{\n  \"manifest_version\": 3,\n  \"name\": \"Jarvis\",\n  \"version\": \"1.0\",\n  \"description\": \"A voice assistant that opens sites, controls your tabs and windows, and answers questions.\",\n  \"action\": {\n    \"default_title\": \"Open Jarvis\",\n    \"default_icon\": {\n      \"16\": \"icon16.png\",\n      \"48\": \"icon48.png\",\n      \"128\": \"icon128.png\"\n    }\n  },\n  \"icons\": {\n    \"16\": \"icon16.png\",\n    \"48\": \"icon48.png\",\n    \"128\": \"icon128.png\"\n  },\n  \"background\": {\n    \"service_worker\": \"service-worker.js\"\n  },\n  \"permissions\": [\n    \"tabs\",\n    \"scripting\",\n    \"bookmarks\",\n    \"history\",\n    \"downloads\",\n    \"contextMenus\"\n  ],\n  \"host_permissions\": [\n    \"<all_urls>\"\n  ],\n  \"commands\": {\n    \"_execute_action\": {\n      \"suggested_key\": {\n        \"default\": \"Alt+Shift+J\"\n      },\n      \"description\": \"Open Jarvis\"\n    }\n  }\n}", "service-worker.js": "// Opens Jarvis in its own small window when you click the toolbar icon.\nconst PAGE = chrome.runtime.getURL(\"jarvis.html\");\n\nasync function openJarvis() {\n  const tabs = await chrome.tabs.query({ url: PAGE + \"*\" });\n  for (const t of tabs) {                           // already open as the small window? just bring it forward\n    const w = await chrome.windows.get(t.windowId);\n    if (w.type === \"popup\") { await chrome.windows.update(w.id, { focused: true }); return; }\n  }\n  await chrome.windows.create({ url: PAGE, type: \"popup\", width: 460, height: 780 });\n}\n\nchrome.action.onClicked.addListener(openJarvis);\n\nchrome.runtime.onInstalled.addListener(() => {\n  chrome.contextMenus.create({ id: \"mic-setup\", title: \"Allow microphone (open in a tab)\", contexts: [\"action\"] });\n  chrome.tabs.create({ url: PAGE + \"?setup=1\" });   // first run: set up mic and key in a normal tab\n});\n\nchrome.contextMenus.onClicked.addListener(info => {\n  if (info.menuItemId === \"mic-setup\") chrome.tabs.create({ url: PAGE + \"?setup=1\" });\n});\n"};
+const CRC_T = (() => { const t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? (c >>> 1) ^ 0xEDB88320 : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+const toBytes = s => new TextEncoder().encode(s);
+function makeZip(files) {                            // a plain (uncompressed) zip file
+  const parts = [], central = [];
+  let offset = 0;
+  const d = new Date();
+  const time = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+  const date = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+  for (const f of files) {
+    const name = toBytes(f.name), crc = crc32(f.data), size = f.data.length;
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true);
+    lh.setUint16(10, time, true); lh.setUint16(12, date, true); lh.setUint32(14, crc, true);
+    lh.setUint32(18, size, true); lh.setUint32(22, size, true); lh.setUint16(26, name.length, true); lh.setUint16(28, 0, true);
+    parts.push(new Uint8Array(lh.buffer), name, f.data);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(10, 0, true);
+    ch.setUint16(12, time, true); ch.setUint16(14, date, true); ch.setUint32(16, crc, true);
+    ch.setUint32(20, size, true); ch.setUint32(24, size, true); ch.setUint16(28, name.length, true);
+    ch.setUint32(42, offset, true);
+    central.push(new Uint8Array(ch.buffer), name);
+    offset += 30 + name.length + size;
+  }
+  const cdSize = central.reduce((n, p) => n + p.length, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+  end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type: "application/zip" });
+}
+function iconBytes(size) {
+  const c = document.createElement("canvas"); c.width = c.height = size;
+  const x = c.getContext("2d");
+  x.fillStyle = "#03121a"; x.beginPath(); x.arc(size / 2, size / 2, size / 2 - 1, 0, 7); x.fill();
+  x.strokeStyle = "#00e5ff"; x.lineWidth = Math.max(1, size * 0.06); x.stroke();
+  const g = x.createRadialGradient(size / 2, size * 0.42, size * 0.02, size / 2, size / 2, size * 0.3);
+  g.addColorStop(0, "#9ffbff"); g.addColorStop(1, "#00b8d0");
+  x.fillStyle = g; x.shadowColor = "#00e5ff"; x.shadowBlur = size * 0.12;
+  x.beginPath(); x.arc(size / 2, size / 2, size * 0.28, 0, 7); x.fill();
+  const bin = atob(c.toDataURL("image/png").split(",")[1]);
+  return Uint8Array.from(bin, ch => ch.charCodeAt(0));
+}
+function extHtml() {                                 // the extension page = this page's design + the same code in a separate file
+  return '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>JARVIS</title>\n<style>' +
+    document.getElementById("app-style").textContent + '</style>\n</head>\n<body>\n' +
+    document.getElementById("page-html").innerHTML + '\n<script src="jarvis.js"><\/script>\n</body>\n</html>\n';
+}
+function extFiles() {
+  return [
+    { name: "manifest.json", data: toBytes(EXT_STATIC["manifest.json"]) },
+    { name: "service-worker.js", data: toBytes(EXT_STATIC["service-worker.js"]) },
+    { name: "jarvis.html", data: toBytes(extHtml()) },
+    { name: "jarvis.js", data: toBytes(document.getElementById("app-src").textContent) },
+    { name: "icon16.png", data: iconBytes(16) },
+    { name: "icon48.png", data: iconBytes(48) },
+    { name: "icon128.png", data: iconBytes(128) },
+  ];
+}
+if (IS_EXT || !document.getElementById("app-src")) {
+  const b = $("extbtn"); if (b) b.style.display = "none";
+} else {
+  $("extbtn").onclick = () => { const b = $("extbox"); b.style.display = b.style.display === "block" ? "none" : "block"; };
+  $("ext-zip").onclick = () => {
+    const blob = makeZip(extFiles().map(f => ({ name: "jarvis-extension/" + f.name, data: f.data })));
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = "jarvis-extension.zip";
+    document.body.appendChild(a); a.click(); a.remove();
+    $("ext-msg").textContent = "Downloaded jarvis-extension.zip. Right-click it in the Files app and choose Extract all.";
+  };
+  $("ext-save").onclick = async () => {
+    try {
+      if (!window.showDirectoryPicker) throw new Error("this browser cannot save folders, use Download zip instead");
+      const dir = await window.showDirectoryPicker({ mode: "readwrite" });
+      const sub = await dir.getDirectoryHandle("jarvis-extension", { create: true });
+      for (const f of extFiles()) {
+        const h = await sub.getFileHandle(f.name, { create: true });
+        const w = await h.createWritable(); await w.write(f.data); await w.close();
+      }
+      $("ext-msg").textContent = "Saved the folder jarvis-extension. Now load it in chrome://extensions.";
+    } catch (e) {
+      $("ext-msg").textContent = e.name === "AbortError" ? "Cancelled." : "Could not save the folder (" + e.message + "). Use Download zip instead.";
+    }
+  };
+}
+</script>
+<script>
+(function () {
+  var t = document.getElementById("page-html");
+  document.body.insertBefore(t.content.cloneNode(true), document.body.firstChild);
+  var s = document.createElement("script");
+  s.textContent = document.getElementById("app-src").textContent;
+  document.body.appendChild(s);
+})();
+</script>
+</body>
+</html>
